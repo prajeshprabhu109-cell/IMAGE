@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>AI Image Generator</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: system-ui, sans-serif; background: #0f0f0f; color: #f0f0f0; min-height: 100vh; padding: 2rem 1rem; }
+  .container { max-width: 720px; margin: 0 auto; }
+  h1 { font-size: 24px; font-weight: 600; margin-bottom: 4px; }
+  .sub { font-size: 14px; color: #888; margin-bottom: 2rem; }
+  label { font-size: 13px; color: #aaa; display: block; margin-bottom: 6px; margin-top: 16px; }
+  input[type="password"], input[type="text"], textarea, select {
+    width: 100%; padding: 10px 14px; border-radius: 8px;
+    border: 1px solid #333; background: #1a1a1a; color: #f0f0f0;
+    font-size: 14px; font-family: inherit;
+  }
+  input:focus, textarea:focus, select:focus { outline: none; border-color: #555; }
+  textarea { min-height: 90px; resize: vertical; }
+  .row { display: flex; gap: 10px; }
+  .row select { flex: 1; }
+  button {
+    margin-top: 18px; width: 100%; padding: 12px;
+    background: #2563eb; color: #fff; border: none;
+    border-radius: 8px; font-size: 15px; font-weight: 600;
+    cursor: pointer; transition: background 0.2s;
+  }
+  button:hover { background: #1d4ed8; }
+  button:disabled { background: #333; color: #666; cursor: not-allowed; }
+  .status { margin-top: 14px; padding: 12px 16px; border-radius: 8px; font-size: 14px; display: none; }
+  .status.loading { display: block; background: #1e3a5f; color: #93c5fd; }
+  .status.error { display: block; background: #3b1212; color: #fca5a5; }
+  .status.success { display: block; background: #14532d; color: #86efac; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px; margin-top: 20px; }
+  .img-card { background: #1a1a1a; border-radius: 10px; overflow: hidden; border: 1px solid #2a2a2a; }
+  .img-card img { width: 100%; display: block; }
+  .img-footer { padding: 10px; display: flex; gap: 8px; }
+  .img-footer a, .img-footer button {
+    flex: 1; padding: 8px; font-size: 13px; text-align: center;
+    border-radius: 6px; border: 1px solid #333; background: #222;
+    color: #ccc; cursor: pointer; text-decoration: none; margin-top: 0;
+    width: auto; font-weight: 400;
+  }
+  .img-footer a:hover, .img-footer button:hover { background: #2a2a2a; color: #fff; }
+  .hint { font-size: 12px; color: #666; margin-top: 6px; }
+  .hint a { color: #60a5fa; }
+  .spinner { display: inline-block; width: 16px; height: 16px; border: 2px solid #444; border-top-color: #60a5fa; border-radius: 50%; animation: spin 0.8s linear infinite; vertical-align: middle; margin-right: 8px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>AI Image Generator</h1>
+  <p class="sub">Free — powered by Hugging Face Inference API</p>
+
+  <label>Hugging Face API Token</label>
+  <input type="password" id="token" placeholder="hf_xxxxxxxxxxxxxxxxxxxxxxxx" />
+  <p class="hint">Get a free token at <a href="https://huggingface.co/settings/tokens" target="_blank">huggingface.co/settings/tokens</a></p>
+
+  <label>Model</label>
+  <select id="model">
+    <option value="black-forest-labs/FLUX.1-schnell">FLUX.1 Schnell (fastest)</option>
+    <option value="stabilityai/stable-diffusion-xl-base-1.0">Stable Diffusion XL (best quality)</option>
+    <option value="runwayml/stable-diffusion-v1-5">Stable Diffusion 1.5</option>
+    <option value="prompthero/openjourney-v4">Openjourney v4 (Midjourney style)</option>
+    <option value="dreamlike-art/dreamlike-photoreal-2.0">Dreamlike Photoreal</option>
+  </select>
+
+  <label>Prompt</label>
+  <textarea id="prompt" placeholder="A majestic lion in a golden savanna at sunset, photorealistic, 8k, dramatic lighting..."></textarea>
+
+  <label>Negative Prompt (optional)</label>
+  <textarea id="neg" placeholder="blurry, low quality, watermark, ugly..." style="min-height:60px;"></textarea>
+
+  <div class="row" style="margin-top:14px;">
+    <div style="flex:1;">
+      <label style="margin-top:0;">Number of images</label>
+      <select id="count">
+        <option value="1">1 image</option>
+        <option value="2">2 images</option>
+        <option value="4">4 images</option>
+      </select>
+    </div>
+  </div>
+
+  <button id="btn" onclick="generate()">Generate Images</button>
+
+  <div class="status" id="status"></div>
+  <div class="grid" id="grid"></div>
+</div>
+
+<script>
+async function generate() {
+  const token = document.getElementById('token').value.trim();
+  const prompt = document.getElementById('prompt').value.trim();
+  const neg = document.getElementById('neg').value.trim();
+  const model = document.getElementById('model').value;
+  const count = parseInt(document.getElementById('count').value);
+  const btn = document.getElementById('btn');
+  const status = document.getElementById('status');
+  const grid = document.getElementById('grid');
+
+  if (!token) { showStatus('Please enter your Hugging Face API token.', 'error'); return; }
+  if (!prompt) { showStatus('Please enter a prompt.', 'error'); return; }
+
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span>Generating...';
+  grid.innerHTML = '';
+  showStatus('Generating ' + count + ' image' + (count > 1 ? 's' : '') + '... please wait 15–40 seconds.', 'loading');
+
+  const body = { inputs: prompt };
+  if (neg) body.parameters = { negative_prompt: neg };
+
+  try {
+    const tasks = Array.from({ length: count }, () =>
+      fetch('https://api-inference.huggingface.co/models/' + model, {
+        method: 'POST',
+        headers: {
+          'Authorization': 'Bearer ' + token,
+          'Content-Type': 'application/json',
+          'x-wait-for-model': 'true'
+        },
+        body: JSON.stringify(body)
+      }).then(async r => {
+        if (!r.ok) {
+          const t = await r.text();
+          throw new Error('HTTP ' + r.status + ': ' + t.substring(0, 300));
+        }
+        return r.blob();
+      })
+    );
+
+    const blobs = await Promise.all(tasks);
+    showStatus(count + ' image' + (count > 1 ? 's' : '') + ' generated!', 'success');
+
+    blobs.forEach((blob, i) => {
+      const url = URL.createObjectURL(blob);
+      const card = document.createElement('div');
+      card.className = 'img-card';
+      card.innerHTML =
+        '<img src="' + url + '" alt="Generated image ' + (i+1) + '" />' +
+        '<div class="img-footer">' +
+          '<a href="' + url + '" download="ai-image-' + (i+1) + '.png">Download</a>' +
+        '</div>';
+      grid.appendChild(card);
+    });
+
+  } catch (e) {
+    let msg = e.message;
+    if (msg.includes('401')) msg = 'Invalid token. Check your Hugging Face API token.';
+    else if (msg.includes('403')) msg = 'Access denied. Make sure your token has Read permissions.';
+    else if (msg.includes('503')) msg = 'Model is loading (cold start). Wait 20 seconds and try again.';
+    else if (msg.includes('Failed to fetch')) msg = 'Network error. Make sure you are connected to the internet and open this file in a browser (not a code editor preview).';
+    showStatus(msg, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = 'Generate Images';
+  }
+}
+
+function showStatus(msg, type) {
+  const el = document.getElementById('status');
+  el.textContent = msg;
+  el.className = 'status ' + type;
+}
+
+document.addEventListener('keydown', e => {
+  if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') generate();
+});
+</script>
+</body>
+</html>
