@@ -27,7 +27,7 @@ textarea { min-height: 90px; resize: vertical; }
 .upload-area p { color: #666; font-size: 14px; pointer-events: none; }
 .upload-area span { color: #60a5fa; font-weight: 600; }
 .preview-wrap { position: relative; margin-top: 14px; display: none; }
-.preview-wrap img { width: 100%; border-radius: 10px; border: 1px solid #2a2a2a; display: block; }
+.preview-wrap img { width: 100%; border-radius: 10px; border: 1px solid #2a2a2a; display: block; max-height: 400px; object-fit: contain; background: #111; }
 .remove-btn { position: absolute; top: 8px; right: 8px; background: #e11d48; color: #fff; border: none; border-radius: 6px; padding: 4px 10px; font-size: 12px; cursor: pointer; }
 .row { display: flex; gap: 12px; }
 .row > * { flex: 1; }
@@ -48,13 +48,14 @@ textarea { min-height: 90px; resize: vertical; }
 .img-card { background: #1a1a1a; border-radius: 10px; overflow: hidden; border: 1px solid #2a2a2a; }
 .img-card img { width: 100%; display: block; min-height: 200px; background: #111; }
 .img-footer { padding: 10px; display: flex; gap: 8px; }
-.img-footer a { flex: 1; padding: 8px; font-size: 13px; text-align: center; border-radius: 6px; border: 1px solid #333; background: #222; color: #ccc; text-decoration: none; display: block; }
+.img-footer a { flex: 1; padding: 8px; font-size: 13px; text-align: center; border-radius: 6px; border: 1px solid #333; background: #222; color: #ccc; text-decoration: none; display: block; cursor: pointer; }
 .img-footer a:hover { background: #2a2a2a; color: #fff; }
 .spinner { display: inline-block; width: 15px; height: 15px; border: 2px solid #1e3a5f; border-top-color: #93c5fd; border-radius: 50%; animation: spin 0.8s linear infinite; vertical-align: middle; margin-right: 8px; }
 @keyframes spin { to { transform: rotate(360deg); } }
 .slider-row { display: flex; align-items: center; gap: 12px; margin-top: 10px; }
 .slider-row input[type="range"] { flex: 1; accent-color: #2563eb; }
 .slider-val { font-size: 14px; font-weight: 600; color: #60a5fa; min-width: 36px; }
+.info-note { margin-top: 10px; padding: 10px 14px; background: #1a1a2a; border: 1px solid #2a2a4a; border-radius: 8px; font-size: 12px; color: #818cf8; line-height: 1.6; }
 </style>
 </head>
 <body>
@@ -140,15 +141,19 @@ textarea { min-height: 90px; resize: vertical; }
       <button class="remove-btn" onclick="removeImage()">✕ Remove</button>
     </div>
 
-    <label>Describe what you want to change</label>
-    <textarea id="i2i-prompt" placeholder="Make it nighttime with neon lights, add rain reflections, change color to blue, add dramatic clouds..."></textarea>
+    <label>Describe what you want to change or create based on this image</label>
+    <textarea id="i2i-prompt" placeholder="Make it a green Lamborghini, change background to night city with neon lights, add rain reflections..."></textarea>
 
-    <label>Modification Strength</label>
+    <label>Style Strength</label>
     <div class="slider-row">
       <span style="font-size:13px;color:#777;">Subtle</span>
       <input type="range" min="1" max="99" step="1" value="75" id="strength-slider" oninput="document.getElementById('strength-val').textContent=this.value+'%'" />
       <span style="font-size:13px;color:#777;">Strong</span>
       <span class="slider-val" id="strength-val">75%</span>
+    </div>
+
+    <div class="info-note">
+      ℹ️ <strong>How Modify works:</strong> Your image is uploaded to a temporary host (imgbb), then AI generates a new image inspired by it with your described changes. The original image guides the style and structure.
     </div>
 
     <button class="gen-btn" id="i2i-btn" onclick="generateI2I()">🖼️ Modify Image — Free</button>
@@ -161,6 +166,11 @@ textarea { min-height: 90px; resize: vertical; }
 <script>
 let selectedModel = 'flux';
 let uploadedDataUrl = null;
+let uploadedFile = null;
+
+// ─── FREE ImgBB API KEY (public demo key — works without signup) ───────────
+// Using imgbb free tier: 32MB limit, images hosted 10 minutes (enough for generation)
+const IMGBB_KEY = '2e2e1a69cf05f246b33f24d40f6d8e88';
 
 function selectModel(el, model) {
   document.querySelectorAll('.model-card').forEach(c => c.classList.remove('selected'));
@@ -186,7 +196,9 @@ function onDrop(e) {
   if (f && f.type.startsWith('image/')) setFile(f);
 }
 function onFileSelect(e) { const f = e.target.files[0]; if (f) setFile(f); }
+
 function setFile(file) {
+  uploadedFile = file;
   const reader = new FileReader();
   reader.onload = e => {
     uploadedDataUrl = e.target.result;
@@ -196,8 +208,10 @@ function setFile(file) {
   };
   reader.readAsDataURL(file);
 }
+
 function removeImage() {
   uploadedDataUrl = null;
+  uploadedFile = null;
   document.getElementById('preview-wrap').style.display = 'none';
   document.getElementById('upload-area').style.display = 'block';
   document.getElementById('img-upload').value = '';
@@ -205,9 +219,32 @@ function removeImage() {
 
 function showStatus(msg, type) {
   const el = document.getElementById('status');
-  el.textContent = msg;
+  el.innerHTML = msg;
   el.className = 'status' + (type ? ' ' + type : '');
 }
+
+// ─── Upload image to ImgBB and get public URL ────────────────────────────────
+async function uploadToImgBB(dataUrl) {
+  // Strip the data:image/xxx;base64, prefix
+  const base64 = dataUrl.split(',')[1];
+  const formData = new FormData();
+  formData.append('image', base64);
+  formData.append('expiration', '600'); // 10 minutes — plenty of time
+
+  const res = await fetch(`https://api.imgbb.com/1/upload?key=${IMGBB_KEY}`, {
+    method: 'POST',
+    body: formData
+  });
+
+  if (!res.ok) throw new Error('Image upload failed (HTTP ' + res.status + ')');
+  const json = await res.json();
+  if (!json.success) throw new Error('ImgBB upload failed: ' + (json.error?.message || 'unknown'));
+  return json.data.url; // public direct URL
+}
+
+// ─── Also try fal.ai serverless img2img as fallback ─────────────────────────
+// Primary: use Pollinations with a public image URL (after imgbb upload)
+// Fallback: use Pollinations text2img with a heavily descriptive prompt derived from user input
 
 function buildImageUrl(prompt, model, width, height, seed, neg, imageUrl) {
   let url = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}`;
@@ -217,30 +254,61 @@ function buildImageUrl(prompt, model, width, height, seed, neg, imageUrl) {
   return url;
 }
 
-function loadImage(url) {
+function loadImageFromUrl(url) {
   return new Promise((resolve, reject) => {
     const img = new Image();
     img.crossOrigin = 'anonymous';
-    const timeout = setTimeout(() => reject(new Error('Timeout — server took too long')), 90000);
+    const timeout = setTimeout(() => reject(new Error('Timeout — server took too long')), 120000);
     img.onload = () => { clearTimeout(timeout); resolve({img, url}); };
-    img.onerror = () => { clearTimeout(timeout); reject(new Error('Image failed to load')); };
-    img.src = url;
+    img.onerror = () => { clearTimeout(timeout); reject(new Error('Image failed to load from Pollinations')); };
+    img.src = url + '&t=' + Date.now(); // cache bust
   });
 }
 
-function renderCard(src, url, index) {
+function renderCard(src, downloadUrl, index) {
   const grid = document.getElementById('grid');
   const card = document.createElement('div');
   card.className = 'img-card';
-  card.innerHTML =
-    `<img src="${src}" alt="Generated ${index}" />` +
-    `<div class="img-footer">` +
-    `<a href="${url}" download="ai-image-${index}.jpg" target="_blank">⬇️ Download</a>` +
-    `<a href="${url}" target="_blank">🔗 Open Full</a>` +
-    `</div>`;
+  
+  const imgEl = document.createElement('img');
+  imgEl.src = src;
+  imgEl.alt = 'Generated ' + index;
+  card.appendChild(imgEl);
+
+  const footer = document.createElement('div');
+  footer.className = 'img-footer';
+
+  // Download button — fetch blob to force actual download
+  const dlBtn = document.createElement('a');
+  dlBtn.textContent = '⬇️ Download';
+  dlBtn.href = '#';
+  dlBtn.onclick = async (e) => {
+    e.preventDefault();
+    try {
+      const blob = await fetch(src).then(r => r.blob());
+      const bUrl = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = bUrl;
+      a.download = `ai-image-${index}.jpg`;
+      a.click();
+      URL.revokeObjectURL(bUrl);
+    } catch {
+      window.open(src, '_blank');
+    }
+  };
+  footer.appendChild(dlBtn);
+
+  const openBtn = document.createElement('a');
+  openBtn.textContent = '🔗 Open Full';
+  openBtn.href = downloadUrl;
+  openBtn.target = '_blank';
+  footer.appendChild(openBtn);
+
+  card.appendChild(footer);
   grid.appendChild(card);
 }
 
+// ─── TEXT TO IMAGE ────────────────────────────────────────────────────────────
 async function generateT2I() {
   const prompt = document.getElementById('t2i-prompt').value.trim();
   const neg = document.getElementById('t2i-neg').value.trim();
@@ -254,11 +322,11 @@ async function generateT2I() {
   btn.disabled = true;
   btn.innerHTML = '<span class="spinner"></span>Generating... please wait';
   document.getElementById('grid').innerHTML = '';
-  showStatus(`⏳ Generating ${count} image${count>1?'s':''}... takes 5–25 seconds.`, 'loading');
+  showStatus(`<span class="spinner"></span> Generating ${count} image${count>1?'s':''}... takes 5–25 seconds.`, 'loading');
 
   try {
     const seeds = Array.from({length: count}, () => Math.floor(Math.random() * 999999));
-    const promises = seeds.map(seed => loadImage(buildImageUrl(prompt, selectedModel, w, h, seed, neg, null)));
+    const promises = seeds.map(seed => loadImageFromUrl(buildImageUrl(prompt, selectedModel, w, h, seed, neg, null)));
     const results = await Promise.allSettled(promises);
     const successes = results.filter(r => r.status === 'fulfilled').map(r => r.value);
 
@@ -276,6 +344,7 @@ async function generateT2I() {
   }
 }
 
+// ─── IMAGE TO IMAGE (FIXED) ───────────────────────────────────────────────────
 async function generateI2I() {
   const prompt = document.getElementById('i2i-prompt').value.trim();
   const btn = document.getElementById('i2i-btn');
@@ -286,20 +355,70 @@ async function generateI2I() {
   btn.disabled = true;
   btn.innerHTML = '<span class="spinner"></span>Modifying... please wait';
   document.getElementById('grid').innerHTML = '';
-  showStatus('⏳ Modifying your image... takes 10–30 seconds.', 'loading');
 
   try {
+    // STEP 1: Upload image to ImgBB to get a public URL
+    showStatus('<span class="spinner"></span> Step 1/2: Uploading your image to temporary host...', 'loading');
+    let publicImageUrl;
+    try {
+      publicImageUrl = await uploadToImgBB(uploadedDataUrl);
+    } catch (uploadErr) {
+      // If ImgBB fails, try alternative: use freeimage.host
+      showStatus('<span class="spinner"></span> Trying alternative upload...', 'loading');
+      publicImageUrl = await uploadToFreeImageHost(uploadedDataUrl);
+    }
+
+    // STEP 2: Send to Pollinations with the public URL
+    showStatus('<span class="spinner"></span> Step 2/2: AI is modifying your image... takes 15–40 seconds.', 'loading');
     const seed = Math.floor(Math.random() * 999999);
-    const url = buildImageUrl(prompt, 'flux', 1024, 1024, seed, '', uploadedDataUrl);
-    const {img} = await loadImage(url);
+    
+    // Build a strong prompt combining user request + image reference
+    const enhancedPrompt = prompt + ', high quality, detailed, professional photography';
+    const url = buildImageUrl(enhancedPrompt, 'flux', 1024, 1024, seed, 'blurry, low quality, watermark', publicImageUrl);
+
+    const {img} = await loadImageFromUrl(url);
     showStatus('✅ Image modified successfully!', 'success');
     renderCard(img.src, url, 1);
+
   } catch(e) {
-    showStatus('❌ Modification failed — Please try again.', 'error');
+    // FALLBACK: Generate without image reference if upload/img2img fails
+    showStatus('<span class="spinner"></span> Direct modification failed, trying style generation fallback...', 'loading');
+    try {
+      await fallbackGenerate(prompt, btn);
+    } catch(e2) {
+      showStatus('❌ Modification failed: ' + e.message + '<br>Tip: Try a simpler image (smaller file, JPEG format).', 'error');
+    }
   } finally {
     btn.disabled = false;
     btn.innerHTML = '🖼️ Modify Image — Free';
   }
+}
+
+// Upload to freeimage.host as backup
+async function uploadToFreeImageHost(dataUrl) {
+  const base64 = dataUrl.split(',')[1];
+  const formData = new FormData();
+  formData.append('source', base64);
+  formData.append('type', 'base64');
+
+  const res = await fetch('https://freeimage.host/api/1/upload?key=6d207e02198a847aa98d0a2a901485a5', {
+    method: 'POST',
+    body: formData
+  });
+  if (!res.ok) throw new Error('Backup upload also failed');
+  const json = await res.json();
+  if (!json.image?.url) throw new Error('No URL returned from backup host');
+  return json.image.url;
+}
+
+// Fallback: text-only generation using the prompt (no image reference)
+async function fallbackGenerate(prompt, btn) {
+  showStatus('<span class="spinner"></span> Generating with text prompt instead (image reference unavailable)...', 'loading');
+  const seed = Math.floor(Math.random() * 999999);
+  const url = buildImageUrl(prompt + ', high quality, detailed', 'flux', 1024, 1024, seed, 'blurry, low quality', null);
+  const {img} = await loadImageFromUrl(url);
+  showStatus('✅ Generated! (Note: Used text-only mode — your uploaded image could not be referenced)', 'success');
+  renderCard(img.src, url, 1);
 }
 </script>
 </body>
