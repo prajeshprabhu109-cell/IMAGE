@@ -5,169 +5,301 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>AI Image Generator</title>
 <style>
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: system-ui, sans-serif; background: #0f0f0f; color: #f0f0f0; min-height: 100vh; padding: 2rem 1rem; }
-  .container { max-width: 720px; margin: 0 auto; }
-  h1 { font-size: 24px; font-weight: 600; margin-bottom: 4px; }
-  .sub { font-size: 14px; color: #888; margin-bottom: 2rem; }
-  label { font-size: 13px; color: #aaa; display: block; margin-bottom: 6px; margin-top: 16px; }
-  input[type="password"], input[type="text"], textarea, select {
-    width: 100%; padding: 10px 14px; border-radius: 8px;
-    border: 1px solid #333; background: #1a1a1a; color: #f0f0f0;
-    font-size: 14px; font-family: inherit;
-  }
-  input:focus, textarea:focus, select:focus { outline: none; border-color: #555; }
-  textarea { min-height: 90px; resize: vertical; }
-  .row { display: flex; gap: 10px; }
-  .row select { flex: 1; }
-  button {
-    margin-top: 18px; width: 100%; padding: 12px;
-    background: #2563eb; color: #fff; border: none;
-    border-radius: 8px; font-size: 15px; font-weight: 600;
-    cursor: pointer; transition: background 0.2s;
-  }
-  button:hover { background: #1d4ed8; }
-  button:disabled { background: #333; color: #666; cursor: not-allowed; }
-  .status { margin-top: 14px; padding: 12px 16px; border-radius: 8px; font-size: 14px; display: none; }
-  .status.loading { display: block; background: #1e3a5f; color: #93c5fd; }
-  .status.error { display: block; background: #3b1212; color: #fca5a5; }
-  .status.success { display: block; background: #14532d; color: #86efac; }
-  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px; margin-top: 20px; }
-  .img-card { background: #1a1a1a; border-radius: 10px; overflow: hidden; border: 1px solid #2a2a2a; }
-  .img-card img { width: 100%; display: block; }
-  .img-footer { padding: 10px; display: flex; gap: 8px; }
-  .img-footer a, .img-footer button {
-    flex: 1; padding: 8px; font-size: 13px; text-align: center;
-    border-radius: 6px; border: 1px solid #333; background: #222;
-    color: #ccc; cursor: pointer; text-decoration: none; margin-top: 0;
-    width: auto; font-weight: 400;
-  }
-  .img-footer a:hover, .img-footer button:hover { background: #2a2a2a; color: #fff; }
-  .hint { font-size: 12px; color: #666; margin-top: 6px; }
-  .hint a { color: #60a5fa; }
-  .spinner { display: inline-block; width: 16px; height: 16px; border: 2px solid #444; border-top-color: #60a5fa; border-radius: 50%; animation: spin 0.8s linear infinite; vertical-align: middle; margin-right: 8px; }
-  @keyframes spin { to { transform: rotate(360deg); } }
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: system-ui, sans-serif; background: #0f0f0f; color: #f0f0f0; min-height: 100vh; padding: 2rem 1rem; }
+.container { max-width: 760px; margin: 0 auto; }
+h1 { font-size: 26px; font-weight: 700; margin-bottom: 4px; }
+.sub { font-size: 14px; color: #888; margin-bottom: 1.8rem; }
+label { font-size: 13px; color: #aaa; display: block; margin-bottom: 6px; margin-top: 18px; }
+input[type="password"], textarea, select {
+  width: 100%; padding: 10px 14px; border-radius: 8px;
+  border: 1px solid #2a2a2a; background: #1a1a1a; color: #f0f0f0;
+  font-size: 14px; font-family: inherit;
+}
+input:focus, textarea:focus, select:focus { outline: none; border-color: #555; }
+textarea { min-height: 90px; resize: vertical; }
+.hint { font-size: 12px; color: #555; margin-top: 5px; }
+.hint a { color: #60a5fa; }
+.tabs { display: flex; margin-top: 24px; border-radius: 10px; overflow: hidden; border: 1px solid #2a2a2a; }
+.tab { flex: 1; padding: 12px; text-align: center; font-size: 14px; font-weight: 600; cursor: pointer; background: #1a1a1a; color: #777; border: none; transition: all 0.2s; }
+.tab.active { background: #2563eb; color: #fff; }
+.tab:hover:not(.active) { background: #222; color: #ccc; }
+.panel { display: none; }
+.panel.active { display: block; }
+.upload-area {
+  margin-top: 14px; border: 2px dashed #333; border-radius: 10px;
+  padding: 30px; text-align: center; cursor: pointer; transition: border-color 0.2s;
+  background: #141414; position: relative;
+}
+.upload-area:hover, .upload-area.dragover { border-color: #2563eb; }
+.upload-area input[type="file"] { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%; }
+.upload-area p { color: #666; font-size: 14px; pointer-events: none; }
+.upload-area span { color: #60a5fa; font-weight: 600; }
+.preview-wrap { position: relative; margin-top: 14px; display: none; }
+.preview-wrap img { width: 100%; border-radius: 10px; border: 1px solid #2a2a2a; display: block; }
+.remove-btn { position: absolute; top: 8px; right: 8px; background: #e11d48; color: #fff; border: none; border-radius: 6px; padding: 4px 10px; font-size: 12px; cursor: pointer; }
+.slider-row { display: flex; align-items: center; gap: 12px; margin-top: 10px; }
+.slider-row input[type="range"] { flex: 1; accent-color: #2563eb; }
+.slider-val { font-size: 14px; font-weight: 600; color: #60a5fa; min-width: 32px; text-align: right; }
+.gen-btn { margin-top: 20px; width: 100%; padding: 13px; background: #2563eb; color: #fff; border: none; border-radius: 8px; font-size: 15px; font-weight: 700; cursor: pointer; transition: background 0.2s; }
+.gen-btn:hover { background: #1d4ed8; }
+.gen-btn:disabled { background: #222; color: #555; cursor: not-allowed; }
+.status { margin-top: 14px; padding: 12px 16px; border-radius: 8px; font-size: 14px; display: none; line-height: 1.5; }
+.status.loading { display: block; background: #1e3a5f; color: #93c5fd; }
+.status.error { display: block; background: #3b1212; color: #fca5a5; }
+.status.success { display: block; background: #14532d; color: #86efac; }
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px; margin-top: 20px; }
+.img-card { background: #1a1a1a; border-radius: 10px; overflow: hidden; border: 1px solid #2a2a2a; }
+.img-card img { width: 100%; display: block; }
+.img-footer { padding: 10px; }
+.img-footer a { display: block; padding: 8px; font-size: 13px; text-align: center; border-radius: 6px; border: 1px solid #333; background: #222; color: #ccc; text-decoration: none; }
+.img-footer a:hover { background: #2a2a2a; color: #fff; }
+.spinner { display: inline-block; width: 15px; height: 15px; border: 2px solid #444; border-top-color: #93c5fd; border-radius: 50%; animation: spin 0.8s linear infinite; vertical-align: middle; margin-right: 8px; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.model-badge { display: inline-block; background: #14532d; color: #86efac; font-size: 11px; padding: 2px 8px; border-radius: 4px; margin-left: 8px; vertical-align: middle; }
 </style>
 </head>
 <body>
 <div class="container">
   <h1>AI Image Generator</h1>
-  <p class="sub">Free — powered by Hugging Face Inference API</p>
+  <p class="sub">Free · Powered by Hugging Face · Text to Image &amp; Image Modifier</p>
 
   <label>Hugging Face API Token</label>
   <input type="password" id="token" placeholder="hf_xxxxxxxxxxxxxxxxxxxxxxxx" />
-  <p class="hint">Get a free token at <a href="https://huggingface.co/settings/tokens" target="_blank">huggingface.co/settings/tokens</a></p>
+  <p class="hint">Get a free token at <a href="https://huggingface.co/settings/tokens" target="_blank">huggingface.co/settings/tokens</a> — free account, no credit card</p>
 
-  <label>Model</label>
-  <select id="model">
-    <option value="black-forest-labs/FLUX.1-schnell">FLUX.1 Schnell (fastest)</option>
-    <option value="stabilityai/stable-diffusion-xl-base-1.0">Stable Diffusion XL (best quality)</option>
-    <option value="runwayml/stable-diffusion-v1-5">Stable Diffusion 1.5</option>
-    <option value="prompthero/openjourney-v4">Openjourney v4 (Midjourney style)</option>
-    <option value="dreamlike-art/dreamlike-photoreal-2.0">Dreamlike Photoreal</option>
-  </select>
-
-  <label>Prompt</label>
-  <textarea id="prompt" placeholder="A majestic lion in a golden savanna at sunset, photorealistic, 8k, dramatic lighting..."></textarea>
-
-  <label>Negative Prompt (optional)</label>
-  <textarea id="neg" placeholder="blurry, low quality, watermark, ugly..." style="min-height:60px;"></textarea>
-
-  <div class="row" style="margin-top:14px;">
-    <div style="flex:1;">
-      <label style="margin-top:0;">Number of images</label>
-      <select id="count">
-        <option value="1">1 image</option>
-        <option value="2">2 images</option>
-        <option value="4">4 images</option>
-      </select>
-    </div>
+  <div class="tabs">
+    <button class="tab active" onclick="switchTab('txt2img', this)">✏️ Text to Image</button>
+    <button class="tab" onclick="switchTab('img2img', this)">🖼️ Modify an Image</button>
   </div>
 
-  <button id="btn" onclick="generate()">Generate Images</button>
+  <!-- TEXT TO IMAGE -->
+  <div class="panel active" id="panel-txt2img">
+    <label>Model <span class="model-badge">✅ Recommended = SD 1.5</span></label>
+    <select id="t2i-model">
+      <option value="runwayml/stable-diffusion-v1-5">⭐ Stable Diffusion 1.5 (most reliable free)</option>
+      <option value="prompthero/openjourney-v4">🎨 Openjourney v4 (Midjourney style)</option>
+      <option value="dreamlike-art/dreamlike-photoreal-2.0">📷 Dreamlike Photoreal</option>
+      <option value="stabilityai/stable-diffusion-xl-base-1.0">🔥 Stable Diffusion XL (high quality)</option>
+      <option value="black-forest-labs/FLUX.1-schnell">⚡ FLUX.1 Schnell (may need Pro account)</option>
+    </select>
+
+    <label>Prompt — describe what you want to generate</label>
+    <textarea id="t2i-prompt" placeholder="A red Lamborghini speeding through a neon city at night, cinematic, 8k, photorealistic, dramatic lighting..."></textarea>
+
+    <label>Negative Prompt (optional) — what to avoid</label>
+    <textarea id="t2i-neg" placeholder="blurry, low quality, watermark, ugly, deformed, bad anatomy..." style="min-height:60px;"></textarea>
+
+    <label style="margin-top:14px;">Number of images</label>
+    <select id="t2i-count">
+      <option value="1">1 image</option>
+      <option value="2">2 images</option>
+      <option value="4">4 images</option>
+    </select>
+
+    <button class="gen-btn" id="t2i-btn" onclick="generateText2Img()">Generate Images</button>
+  </div>
+
+  <!-- IMAGE TO IMAGE -->
+  <div class="panel" id="panel-img2img">
+    <label>Upload your image</label>
+    <div class="upload-area" id="upload-area" ondragover="onDragOver(event)" ondragleave="onDragLeave(event)" ondrop="onDrop(event)">
+      <input type="file" id="img-upload" accept="image/*" onchange="onFileSelect(event)" />
+      <p><span>Click to upload</span> or drag &amp; drop</p>
+      <p style="margin-top:6px;font-size:12px;">PNG, JPG, WEBP supported</p>
+    </div>
+    <div class="preview-wrap" id="preview-wrap">
+      <img id="preview-img" src="" alt="Preview" />
+      <button class="remove-btn" onclick="removeImage()">✕ Remove</button>
+    </div>
+
+    <label>Model</label>
+    <select id="i2i-model">
+      <option value="timbrooks/instruct-pix2pix">⭐ InstructPix2Pix (best for modifications)</option>
+      <option value="runwayml/stable-diffusion-v1-5">Stable Diffusion 1.5</option>
+    </select>
+
+    <label>What do you want to change?</label>
+    <textarea id="i2i-prompt" placeholder="Make it nighttime with neon lights, add rain on the road, cinematic lighting..."></textarea>
+
+    <label>Negative Prompt (optional)</label>
+    <textarea id="i2i-neg" placeholder="blurry, low quality, watermark..." style="min-height:55px;"></textarea>
+
+    <label>Modification Strength</label>
+    <div class="slider-row">
+      <span style="font-size:13px;color:#777;">Subtle</span>
+      <input type="range" min="0.1" max="1.0" step="0.05" value="0.75" id="strength-slider" oninput="document.getElementById('strength-val').textContent=parseFloat(this.value).toFixed(2)" />
+      <span style="font-size:13px;color:#777;">Strong</span>
+      <span class="slider-val" id="strength-val">0.75</span>
+    </div>
+
+    <button class="gen-btn" id="i2i-btn" onclick="generateImg2Img()">Modify Image</button>
+  </div>
 
   <div class="status" id="status"></div>
   <div class="grid" id="grid"></div>
 </div>
 
 <script>
-async function generate() {
-  const token = document.getElementById('token').value.trim();
-  const prompt = document.getElementById('prompt').value.trim();
-  const neg = document.getElementById('neg').value.trim();
-  const model = document.getElementById('model').value;
-  const count = parseInt(document.getElementById('count').value);
-  const btn = document.getElementById('btn');
-  const status = document.getElementById('status');
-  const grid = document.getElementById('grid');
+let uploadedFile = null;
 
-  if (!token) { showStatus('Please enter your Hugging Face API token.', 'error'); return; }
-  if (!prompt) { showStatus('Please enter a prompt.', 'error'); return; }
+function switchTab(tab, el) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById('panel-' + tab).classList.add('active');
+  document.getElementById('grid').innerHTML = '';
+  showStatus('', '');
+}
+
+function onDragOver(e) { e.preventDefault(); document.getElementById('upload-area').classList.add('dragover'); }
+function onDragLeave() { document.getElementById('upload-area').classList.remove('dragover'); }
+function onDrop(e) {
+  e.preventDefault();
+  document.getElementById('upload-area').classList.remove('dragover');
+  const f = e.dataTransfer.files[0];
+  if (f && f.type.startsWith('image/')) setFile(f);
+}
+function onFileSelect(e) { const f = e.target.files[0]; if (f) setFile(f); }
+function setFile(file) {
+  uploadedFile = file;
+  const reader = new FileReader();
+  reader.onload = e => {
+    document.getElementById('preview-img').src = e.target.result;
+    document.getElementById('preview-wrap').style.display = 'block';
+    document.getElementById('upload-area').style.display = 'none';
+  };
+  reader.readAsDataURL(file);
+}
+function removeImage() {
+  uploadedFile = null;
+  document.getElementById('preview-wrap').style.display = 'none';
+  document.getElementById('upload-area').style.display = 'block';
+  document.getElementById('img-upload').value = '';
+}
+
+function showStatus(msg, type) {
+  const el = document.getElementById('status');
+  el.textContent = msg;
+  el.className = 'status' + (type ? ' ' + type : '');
+}
+
+function handleError(e) {
+  const msg = e.message || String(e);
+  if (msg.includes('401')) return '❌ Invalid token. Go to huggingface.co/settings/tokens and create a NEW token, then paste it here.';
+  if (msg.includes('403')) return '❌ Access denied. Your token needs READ permission. Create a new token with Read access.';
+  if (msg.includes('503')) return '⏳ Model is warming up (cold start). Wait 30 seconds and click Generate again.';
+  if (msg.includes('429')) return '⏳ Too many requests. Wait 1 minute and try again.';
+  if (msg.includes('400')) return '❌ Bad request. Try switching to Stable Diffusion 1.5 model.';
+  return '❌ Error: ' + msg.substring(0, 200);
+}
+
+async function callAPI(url, token, body) {
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Authorization': 'Bearer ' + token,
+      'Content-Type': 'application/json',
+      'x-wait-for-model': 'true'
+    },
+    body: JSON.stringify(body)
+  });
+  if (!res.ok) {
+    const txt = await res.text();
+    throw new Error('HTTP ' + res.status + ' ' + txt);
+  }
+  return res.blob();
+}
+
+async function generateText2Img() {
+  const token = document.getElementById('token').value.trim();
+  const prompt = document.getElementById('t2i-prompt').value.trim();
+  const neg = document.getElementById('t2i-neg').value.trim();
+  const model = document.getElementById('t2i-model').value;
+  const count = parseInt(document.getElementById('t2i-count').value);
+  const btn = document.getElementById('t2i-btn');
+
+  if (!token) { showStatus('⚠️ Please enter your Hugging Face API token first.', 'error'); return; }
+  if (!prompt) { showStatus('⚠️ Please enter a prompt describing what you want to generate.', 'error'); return; }
 
   btn.disabled = true;
-  btn.innerHTML = '<span class="spinner"></span>Generating...';
-  grid.innerHTML = '';
-  showStatus('Generating ' + count + ' image' + (count > 1 ? 's' : '') + '... please wait 15–40 seconds.', 'loading');
+  btn.innerHTML = '<span class="spinner"></span>Generating... please wait';
+  document.getElementById('grid').innerHTML = '';
+  showStatus('⏳ Generating ' + count + ' image' + (count > 1 ? 's' : '') + ' using ' + model.split('/')[1] + '... This takes 15–40 seconds.', 'loading');
 
+  const params = {};
+  if (neg) params.negative_prompt = neg;
   const body = { inputs: prompt };
-  if (neg) body.parameters = { negative_prompt: neg };
+  if (Object.keys(params).length) body.parameters = params;
 
   try {
-    const tasks = Array.from({ length: count }, () =>
-      fetch('https://api-inference.huggingface.co/models/' + model, {
-        method: 'POST',
-        headers: {
-          'Authorization': 'Bearer ' + token,
-          'Content-Type': 'application/json',
-          'x-wait-for-model': 'true'
-        },
-        body: JSON.stringify(body)
-      }).then(async r => {
-        if (!r.ok) {
-          const t = await r.text();
-          throw new Error('HTTP ' + r.status + ': ' + t.substring(0, 300));
-        }
-        return r.blob();
-      })
-    );
-
+    const url = 'https://api-inference.huggingface.co/models/' + model;
+    const tasks = Array.from({ length: count }, () => callAPI(url, token, body));
     const blobs = await Promise.all(tasks);
-    showStatus(count + ' image' + (count > 1 ? 's' : '') + ' generated!', 'success');
-
-    blobs.forEach((blob, i) => {
-      const url = URL.createObjectURL(blob);
-      const card = document.createElement('div');
-      card.className = 'img-card';
-      card.innerHTML =
-        '<img src="' + url + '" alt="Generated image ' + (i+1) + '" />' +
-        '<div class="img-footer">' +
-          '<a href="' + url + '" download="ai-image-' + (i+1) + '.png">Download</a>' +
-        '</div>';
-      grid.appendChild(card);
-    });
-
-  } catch (e) {
-    let msg = e.message;
-    if (msg.includes('401')) msg = 'Invalid token. Check your Hugging Face API token.';
-    else if (msg.includes('403')) msg = 'Access denied. Make sure your token has Read permissions.';
-    else if (msg.includes('503')) msg = 'Model is loading (cold start). Wait 20 seconds and try again.';
-    else if (msg.includes('Failed to fetch')) msg = 'Network error. Make sure you are connected to the internet and open this file in a browser (not a code editor preview).';
-    showStatus(msg, 'error');
+    showStatus('✅ ' + count + ' image' + (count > 1 ? 's' : '') + ' generated successfully!', 'success');
+    renderImages(blobs);
+  } catch(e) {
+    showStatus(handleError(e), 'error');
   } finally {
     btn.disabled = false;
     btn.innerHTML = 'Generate Images';
   }
 }
 
-function showStatus(msg, type) {
-  const el = document.getElementById('status');
-  el.textContent = msg;
-  el.className = 'status ' + type;
+async function generateImg2Img() {
+  const token = document.getElementById('token').value.trim();
+  const prompt = document.getElementById('i2i-prompt').value.trim();
+  const neg = document.getElementById('i2i-neg').value.trim();
+  const model = document.getElementById('i2i-model').value;
+  const strength = parseFloat(document.getElementById('strength-slider').value);
+  const btn = document.getElementById('i2i-btn');
+
+  if (!token) { showStatus('⚠️ Please enter your Hugging Face API token first.', 'error'); return; }
+  if (!uploadedFile) { showStatus('⚠️ Please upload an image to modify.', 'error'); return; }
+  if (!prompt) { showStatus('⚠️ Please describe what you want to change.', 'error'); return; }
+
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span>Modifying image... please wait';
+  document.getElementById('grid').innerHTML = '';
+  showStatus('⏳ Modifying your image... This takes 20–50 seconds.', 'loading');
+
+  try {
+    const b64 = await fileToBase64(uploadedFile);
+    const params = { image: b64.split(',')[1], strength: strength };
+    if (neg) params.negative_prompt = neg;
+    const body = { inputs: prompt, parameters: params };
+    const url = 'https://api-inference.huggingface.co/models/' + model;
+    const blob = await callAPI(url, token, body);
+    showStatus('✅ Image modified successfully!', 'success');
+    renderImages([blob]);
+  } catch(e) {
+    showStatus(handleError(e), 'error');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = 'Modify Image';
+  }
 }
 
-document.addEventListener('keydown', e => {
-  if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') generate();
-});
+function fileToBase64(file) {
+  return new Promise((res, rej) => {
+    const r = new FileReader();
+    r.onload = e => res(e.target.result);
+    r.onerror = rej;
+    r.readAsDataURL(file);
+  });
+}
+
+function renderImages(blobs) {
+  const grid = document.getElementById('grid');
+  grid.innerHTML = '';
+  blobs.forEach((blob, i) => {
+    const url = URL.createObjectURL(blob);
+    const card = document.createElement('div');
+    card.className = 'img-card';
+    card.innerHTML = '<img src="' + url + '" alt="Generated image ' + (i+1) + '" /><div class="img-footer"><a href="' + url + '" download="ai-image-' + (i+1) + '.png">⬇️ Download Image</a></div>';
+    grid.appendChild(card);
+  });
+}
 </script>
 </body>
 </html>
